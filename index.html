@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Invoice Generator — Melanao &amp; Omoji</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-title">CV Karya Mudra Gemilang — Invoice</div>
+  <div class="pill-toggle" id="viewToggle">
+    <button type="button" class="pill active" data-value="create">Buat Invoice</button>
+    <button type="button" class="pill" data-value="list">Daftar Invoice</button>
+  </div>
+</div>
+
+<div class="app" id="createView">
+
+  <!-- ===================== FORM PANEL ===================== -->
+  <section class="panel form-panel">
+    <header class="app-header">
+      <h1>Invoice Generator</h1>
+      <p class="subtitle">CV Karya Mudra Gemilang — Melanao &amp; Omoji</p>
+    </header>
+
+    <!-- Brand & document type -->
+    <div class="field-group">
+      <label>Brand</label>
+      <div class="pill-toggle" id="brandToggle">
+        <button type="button" class="pill active" data-value="melanao">Melanao</button>
+        <button type="button" class="pill" data-value="omoji">Omoji</button>
+      </div>
+    </div>
+
+    <div class="field-group">
+      <label>Jenis Dokumen</label>
+      <div class="pill-toggle" id="docTypeToggle">
+        <button type="button" class="pill active" data-value="quotation">Quotation</button>
+        <button type="button" class="pill" data-value="invoice">Invoice</button>
+      </div>
+    </div>
+
+    <div class="field-group hidden" id="invoiceTypeGroup">
+      <label>Jenis Invoice</label>
+      <div class="pill-toggle" id="typeToggle">
+        <button type="button" class="pill active" data-value="dp">Invoice DP</button>
+        <button type="button" class="pill" data-value="final">Invoice Lunas</button>
+      </div>
+    </div>
+
+    <!-- Client info -->
+    <fieldset class="field-card">
+      <legend>Info Klien</legend>
+      <div class="grid-2">
+        <div class="field">
+          <label for="clientName">Nama Brand / Klien</label>
+          <input type="text" id="clientName" placeholder="cth. Alamii Food" />
+        </div>
+        <div class="field">
+          <label for="contactPerson">Contact Person</label>
+          <input type="text" id="contactPerson" placeholder="cth. Kak Syela" />
+        </div>
+        <div class="field">
+          <label for="clientPhone">No. HP / WA</label>
+          <input type="text" id="clientPhone" placeholder="cth. 0812-9245-5479" />
+        </div>
+        <div class="field">
+          <label for="invoiceDate" id="invoiceDateLabel">Tanggal Quotation</label>
+          <input type="date" id="invoiceDate" />
+        </div>
+        <div class="field" id="dueDateField">
+          <label for="dueDate">Due Date</label>
+          <input type="date" id="dueDate" />
+        </div>
+      </div>
+    </fieldset>
+
+    <!-- Items -->
+    <fieldset class="field-card">
+      <legend>Item / Jasa</legend>
+      <div id="itemsList"></div>
+      <button type="button" class="btn-secondary" id="addItemBtn">+ Tambah Item</button>
+    </fieldset>
+
+    <!-- Additional fee -->
+    <fieldset class="field-card">
+      <legend>Biaya Tambahan (opsional)</legend>
+      <div class="grid-2">
+        <div class="field">
+          <label for="additionalFee">Nominal (Rp)</label>
+          <input type="number" id="additionalFee" placeholder="0" min="0" />
+        </div>
+        <div class="field">
+          <label for="additionalFeeNote">Keterangan</label>
+          <input type="text" id="additionalFeeNote" placeholder="cth. Overtime, ongkir props" />
+        </div>
+      </div>
+    </fieldset>
+
+    <!-- Promo / discount -->
+    <fieldset class="field-card">
+      <legend>Promo / Diskon (opsional)</legend>
+      <div class="pill-toggle" id="promoTypeToggle" style="margin-bottom: 10px;">
+        <button type="button" class="pill active" data-value="percent">Persen (%)</button>
+        <button type="button" class="pill" data-value="nominal">Nominal (Rp)</button>
+      </div>
+      <div class="grid-2">
+        <div class="field">
+          <label for="promoValue" id="promoValueLabel">Jumlah Diskon (%)</label>
+          <input type="number" id="promoValue" placeholder="0" min="0" />
+        </div>
+        <div class="field">
+          <label for="promoNote">Keterangan</label>
+          <input type="text" id="promoNote" placeholder="cth. Promo akhir tahun" />
+        </div>
+      </div>
+    </fieldset>
+
+    <!-- DP-only fields -->
+    <fieldset class="field-card hidden" id="dpFields">
+      <legend>Down Payment</legend>
+      <div class="field">
+        <label for="dpPercent">Persentase DP (%)</label>
+        <input type="number" id="dpPercent" value="50" min="1" max="100" />
+      </div>
+    </fieldset>
+
+    <!-- Final payment-only fields -->
+    <fieldset class="field-card hidden" id="finalFields">
+      <legend>Info Pelunasan</legend>
+      <p class="hint-text">Klien belum pernah DP dan langsung bayar lunas? Isi 0 di kedua field ini.</p>
+      <div class="grid-2">
+        <div class="field">
+          <label for="dpPaidAmount">DP yang Sudah Diterima (Rp)</label>
+          <input type="number" id="dpPaidAmount" min="0" value="0" />
+        </div>
+        <div class="field">
+          <label for="dpPaidDate">Tanggal DP Diterima</label>
+          <input type="date" id="dpPaidDate" />
+        </div>
+      </div>
+    </fieldset>
+
+    <!-- Link ke page Notion yang sudah ada (opsional, dipakai lintas jenis dokumen) -->
+    <fieldset class="field-card">
+      <legend>Sinkron Notion (opsional)</legend>
+      <div class="field">
+        <label for="existingPageUrl" id="existingPageUrlLabel">Link Quotation di Notion (kalau ada — biar dokumen ini ditambahin ke page yang sama, bukan bikin baris baru)</label>
+        <input type="text" id="existingPageUrl" placeholder="tempel link page Notion-nya" />
+      </div>
+    </fieldset>
+
+    <!-- Internal notes -->
+    <fieldset class="field-card">
+      <legend>Lain-lain</legend>
+      <div class="field">
+        <label for="internalNotes">Catatan Internal (tidak tampil di PDF)</label>
+        <input type="text" id="internalNotes" placeholder="opsional" />
+      </div>
+    </fieldset>
+
+    <div class="actions">
+      <button type="button" class="btn-primary" id="downloadPdfBtn">⬇ Download PDF</button>
+      <button type="button" class="btn-notion" id="saveNotionBtn">💾 Simpan ke Notion</button>
+    </div>
+    <p class="status" id="statusMsg"></p>
+  </section>
+
+  <!-- ===================== PREVIEW PANEL ===================== -->
+  <section class="panel preview-panel">
+    <div class="preview-scroll">
+      <div id="invoicePreview" class="invoice-sheet">
+        <!-- rendered by app.js -->
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<!-- ===================== LIST VIEW ===================== -->
+<div class="list-view hidden" id="listView">
+  <div class="list-controls">
+    <select id="listMonth"></select>
+    <select id="listYear"></select>
+    <select id="sortOrder">
+      <option value="desc">Terbaru dulu</option>
+      <option value="asc">Terlama dulu</option>
+    </select>
+    <button type="button" class="btn-secondary" id="refreshListBtn">🔄 Refresh</button>
+    <span class="status" id="listStatusMsg"></span>
+  </div>
+
+  <div class="list-controls">
+    <input type="text" id="searchInput" placeholder="Cari nama klien / brand..." />
+  </div>
+
+  <div class="pill-toggle status-filter" id="brandFilter">
+    <button type="button" class="pill active" data-value="all">Semua Brand</button>
+    <button type="button" class="pill" data-value="Melanao">Melanao</button>
+    <button type="button" class="pill" data-value="Omoji">Omoji</button>
+  </div>
+
+  <div class="pill-toggle status-filter" id="statusFilter">
+    <button type="button" class="pill active" data-value="all">Semua</button>
+    <button type="button" class="pill" data-value="Lunas">Lunas</button>
+    <button type="button" class="pill" data-value="DP Masuk">DP Masuk</button>
+    <button type="button" class="pill" data-value="Belum Bayar">Belum Bayar</button>
+  </div>
+
+  <div class="summary-cards" id="summaryCards"></div>
+
+  <div class="list-table-wrap">
+    <table class="invoice-list-table">
+      <thead>
+        <tr>
+          <th>Invoice</th>
+          <th>Brand</th>
+          <th>Tgl Invoice</th>
+          <th>Due Date</th>
+          <th class="num">Total</th>
+          <th class="num">DP</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="listTableBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Passcode modal (only needed for "Simpan ke Notion") -->
+<div class="modal-backdrop hidden" id="passcodeModal">
+  <div class="modal">
+    <h3>Masukkan Passcode Admin</h3>
+    <input type="password" id="passcodeInput" placeholder="Passcode" />
+    <div class="modal-actions">
+      <button type="button" class="btn-secondary" id="passcodeCancel">Batal</button>
+      <button type="button" class="btn-primary" id="passcodeConfirm">Simpan</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop hidden" id="pdfModal">
+  <div class="modal pdf-modal">
+    <h3>PDF sudah jadi ✓</h3>
+    <iframe id="pdfFrame" title="Preview PDF"></iframe>
+    <div class="modal-actions">
+      <button type="button" class="btn-secondary" id="pdfCloseBtn">Tutup</button>
+      <a class="btn-primary" id="pdfDownloadLink" download>⬇ Download PDF</a>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop hidden" id="paymentModal">
+  <div class="modal">
+    <h3 id="paymentModalTitle">Tandai Pembayaran</h3>
+    <div class="field">
+      <label for="paymentDate">Tanggal</label>
+      <input type="date" id="paymentDate" />
+    </div>
+    <div class="field" id="paymentMetodeField">
+      <label for="paymentMetode">Metode Pembayaran</label>
+      <select id="paymentMetode">
+        <option value="Transfer">Transfer</option>
+        <option value="QRIS">QRIS</option>
+        <option value="Cash">Cash</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="btn-secondary" id="paymentCancel">Batal</button>
+      <button type="button" class="btn-primary" id="paymentConfirm">Simpan</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
