@@ -475,13 +475,20 @@ function applyFilterAndRender() {
 function renderSummary(invoices) {
   const cardsEl = el("summaryCards");
   const totalCount = invoices.length;
-  const totalValue = invoices.reduce((sum, inv) => sum + (inv.total || 0), 0);
+  // "Total Nilai" = uang yang beneran udah diterima, dihitung per baris sesuai
+  // status invoice itu sendiri (bukan sekadar total tagihan) — jadi kalau lagi
+  // difilter "DP Masuk" misalnya, angkanya jumlah DP yang masuk, bukan total invoice-nya.
+  const receivedValue = invoices.reduce((sum, inv) => {
+    if (inv.status === "Lunas") return sum + (inv.total || 0);
+    if (inv.status === "DP Masuk") return sum + (inv.dpAmount || 0);
+    return sum;
+  }, 0);
   const lunasCount = invoices.filter((inv) => inv.status === "Lunas").length;
   const belumLunasCount = totalCount - lunasCount;
 
   cardsEl.innerHTML = `
     <div class="summary-card"><div class="label">Jumlah Invoice</div><div class="value">${totalCount}</div></div>
-    <div class="summary-card"><div class="label">Total Nilai</div><div class="value">${rupiah(totalValue)}</div></div>
+    <div class="summary-card"><div class="label">Total Nilai</div><div class="value">${rupiah(receivedValue)}</div></div>
     <div class="summary-card"><div class="label">Lunas</div><div class="value">${lunasCount}</div></div>
     <div class="summary-card"><div class="label">Belum Lunas</div><div class="value">${belumLunasCount}</div></div>
   `;
@@ -491,7 +498,7 @@ function renderTable(invoices) {
   const bodyEl = el("listTableBody");
 
   if (!invoices.length) {
-    bodyEl.innerHTML = `<tr class="empty-row"><td colspan="8">Gak ada invoice yang cocok sama filter ini.</td></tr>`;
+    bodyEl.innerHTML = `<tr class="empty-row"><td colspan="10">Gak ada invoice yang cocok sama filter ini.</td></tr>`;
     return;
   }
 
@@ -501,6 +508,8 @@ function renderTable(invoices) {
       <td><span class="brand-badge ${(inv.brand || "").toLowerCase()}">${escapeHtml(inv.brand) || "-"}</span></td>
       <td>${formatDate(inv.invoiceDate)}</td>
       <td>${formatDate(inv.dueDate)}</td>
+      <td>${formatDate(inv.dpDate)}</td>
+      <td>${formatDate(inv.fullPaymentDate)}</td>
       <td class="num">${inv.total ? rupiah(inv.total) : "-"}</td>
       <td class="num">${inv.dpAmount ? rupiah(inv.dpAmount) : "-"}</td>
       <td><span class="status-badge ${statusBadgeClass(inv.status)}">${escapeHtml(inv.status)}</span></td>

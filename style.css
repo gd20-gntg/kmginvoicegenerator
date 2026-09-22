@@ -58,8 +58,8 @@ body {
 .summary-card .label { font-size: 11.5px; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 4px; }
 .summary-card .value { font-size: 19px; font-weight: 700; }
 
-.list-table-wrap { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: #fff; }
-.invoice-list-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.list-table-wrap { border: 1px solid var(--line); border-radius: 10px; background: #fff; overflow-x: auto; }
+.invoice-list-table { width: 100%; min-width: 900px; border-collapse: collapse; font-size: 13px; }
 .invoice-list-table th {
   text-align: left; background: #faf9f8; font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em;
   color: var(--ink-soft); padding: 10px 12px; border-bottom: 1px solid var(--line);

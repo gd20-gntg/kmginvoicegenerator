@@ -93,6 +93,8 @@ export default async (req: Request, context: Context) => {
         brand: readSelect(p["Brand"]),
         invoiceDate: readDate(p["Invoice Date"]),
         dueDate: readDate(p["Due Date"]),
+        dpDate: readDate(p["DP Date"]),
+        fullPaymentDate: readDate(p["Full Payment Date"]),
         invoiceAmount,
         additionalFee,
         total,

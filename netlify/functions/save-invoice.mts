@@ -121,7 +121,7 @@ function buildProperties(p: InvoicePayload, isUpdate: boolean) {
   };
 
   if (!isUpdate) {
-    props["Invoice Name"] = { title: [{ text: { content: `${typeLabel} — ${p.clientName || "Client"}` } }] };
+    props["Invoice Name"] = { title: [{ text: { content: p.clientName || "Client" } }] };
     props["Brand"] = { select: { name: brand.selectName } };
   }
 
