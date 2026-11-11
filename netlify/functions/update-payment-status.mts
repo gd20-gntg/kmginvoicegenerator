@@ -143,6 +143,7 @@ export default async (req: Request, context: Context) => {
     case "dp_received":
       properties["DP Status"] = { checkbox: true };
       properties["DP Date"] = { date: { start: date } };
+      if ((payload.dpAmount || 0) > 0) properties["DP Amount"] = { number: payload.dpAmount };
       if (payload.metodePembayaran) properties["Metode Pembayaran"] = { select: { name: payload.metodePembayaran } };
       break;
     case "full_payment_received":

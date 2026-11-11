@@ -138,9 +138,11 @@ function buildProperties(p: InvoicePayload, isUpdate: boolean) {
 
   if (p.type === "dp") {
     props["DP Amount"] = { number: p.dpAmount || 0 };
-  } else if (p.type === "final") {
-    // A final-payment invoice implies the DP has already been received.
-    props["DP Amount"] = { number: p.paidAmount || 0 };
+  } else if (p.type === "final" && (p.paidAmount || 0) > 0) {
+    // Final-payment invoice with a DP already collected earlier.
+    // Without a DP (paidAmount 0) the client pays in full, so DP fields stay
+    // untouched — otherwise DP Status gets ticked and the row shows "DP Masuk".
+    props["DP Amount"] = { number: p.paidAmount };
     props["DP Status"] = { checkbox: true };
     if (p.dpPaidDate) props["DP Date"] = { date: { start: p.dpPaidDate } };
   }

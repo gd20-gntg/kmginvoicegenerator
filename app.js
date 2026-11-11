@@ -631,6 +631,11 @@ function openPaymentModal(inv, action) {
   const isUndo = action.startsWith("undo_");
   el("paymentMetodeField").classList.toggle("hidden", isUndo);
   if (!isUndo) el("paymentMetode").value = "Transfer";
+  // Nominal DP diisi di sini supaya ikut tersimpan ke Notion (DP Amount) & Cashflow CV.
+  // Prefill: DP Amount yang sudah ada di Notion, kalau kosong default 50% dari total.
+  const isDpReceived = action === "dp_received";
+  el("paymentDpAmountField").classList.toggle("hidden", !isDpReceived);
+  if (isDpReceived) el("paymentDpAmount").value = inv.dpAmount || Math.round((inv.total || 0) * 0.5);
   el("paymentModal").classList.remove("hidden");
 }
 
@@ -640,6 +645,19 @@ async function markPayment(passcode) {
   const date = el("paymentDate").value || todayISO();
   const isUndo = action.startsWith("undo_");
   const statusEl = el("listStatusMsg");
+  let dpAmount;
+  if (action === "dp_received") {
+    dpAmount = Number(el("paymentDpAmount").value) || 0;
+    if (dpAmount <= 0) {
+      statusEl.textContent = "Nominal DP wajib diisi (lebih dari 0).";
+      statusEl.className = "status err";
+      return;
+    }
+  } else {
+    // DP cuma dihitung kalau memang sudah ditandai diterima — DP Amount dari
+    // invoice DP yang belum dibayar jangan ngurangin nominal pelunasan di Cashflow.
+    dpAmount = inv.dpStatus ? (inv.dpAmount || 0) : 0;
+  }
   statusEl.textContent = "Menyimpan status...";
   statusEl.className = "status";
   try {
@@ -653,7 +671,7 @@ async function markPayment(passcode) {
         brand: inv.brand,
         invoiceName: inv.name,
         total: inv.total,
-        dpAmount: inv.dpAmount,
+        dpAmount,
         metodePembayaran: isUndo ? null : el("paymentMetode").value,
       }),
     });
