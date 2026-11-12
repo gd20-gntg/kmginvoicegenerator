@@ -73,6 +73,9 @@ interface InvoicePayload {
   dpPaidDate: string | null;
   existingPageUrl: string | null;
   internalNotes: string;
+  invoiceName?: string;
+  classCategory?: string;
+  crmUrl?: string;
 }
 
 function rupiah(n: number) {
@@ -102,6 +105,46 @@ function text(content: string, bold = false) {
     : [{ type: "text", text: { content } }];
 }
 
+// "Beasiswa Omoji x SBO (50%)" / "Potongan Harga (Rp...)" — label shown for the
+// discount/scholarship line, written by the admin in the Keterangan field.
+function potonganLabel(p: InvoicePayload) {
+  const base = (p.promoNote || "").trim() || "Potongan Harga";
+  return p.promoType === "percent" && p.promoValueRaw ? `${base} (${p.promoValueRaw}%)` : base;
+}
+
+// Long text is split into 1900-char chunks (Notion caps each text object at 2000).
+function chunkText(s: string) {
+  const out: any[] = [];
+  for (let i = 0; i < s.length && out.length < 100; i += 1900) {
+    out.push({ type: "text", text: { content: s.slice(i, i + 1900) } });
+  }
+  return out;
+}
+
+// Structured copy of the invoice, stored in the "Items" property so the web app
+// can reliably continue a DP invoice into a final invoice.
+function buildItemsData(p: InvoicePayload) {
+  return {
+    v: 1,
+    type: p.type,
+    items: (p.items || []).map((it) => ({ service: it.service, detail: it.detail || "", price: Number(it.price) || 0, qty: Number(it.qty) || 1 })),
+    contactPerson: p.contactPerson || "",
+    clientPhone: p.clientPhone || "",
+    classCategory: p.classCategory || "",
+    crmUrl: p.crmUrl || "",
+    subtotal: p.subtotal || 0,
+    discount: p.discountAmount || 0,
+    promoType: p.promoType,
+    promoValueRaw: p.promoValueRaw || 0,
+    promoNote: p.promoNote || "",
+    additionalFee: p.additionalFee || 0,
+    additionalFeeNote: p.additionalFeeNote || "",
+    total: p.total || 0,
+    dpPercent: p.type === "dp" ? p.dpPercent : undefined,
+    dpPlanned: p.type === "dp" ? p.dpAmount : undefined,
+  };
+}
+
 function extractPageId(urlOrId: string): string | null {
   const match = urlOrId.replace(/-/g, "").match(/([0-9a-f]{32})(?:\?|$)/i);
   return match ? match[1] : null;
@@ -110,43 +153,42 @@ function extractPageId(urlOrId: string): string | null {
 // ===================== Property builder =====================
 function buildProperties(p: InvoicePayload, isUpdate: boolean) {
   const brand = BRANDS[p.brand];
-  const typeLabel = p.type === "quotation" ? "Quotation" : p.type === "dp" ? "Invoice DP" : "Invoice Lunas";
 
   const props: Record<string, any> = {
-    // Net of discount, so Notion's own Total Invoice Amount formula
+    // Net of potongan, so Notion's own Total Invoice Amount formula
     // (Invoice Amount + Additional Fee) still lands on the real total.
     "Invoice Amount": { number: (p.subtotal || 0) - (p.discountAmount || 0) },
     "Additional Fee": { number: p.additionalFee || 0 },
     "Invoice Date": { date: { start: p.invoiceDate } },
+    "Potongan Harga": { number: p.discountAmount || 0 },
+    "Keterangan Potongan": { rich_text: p.discountAmount ? text(potonganLabel(p)) : [] },
+    "Items": { rich_text: chunkText(JSON.stringify(buildItemsData(p))) },
   };
 
   if (!isUpdate) {
-    props["Invoice Name"] = { title: [{ text: { content: p.clientName || "Client" } }] };
+    const name = (p.invoiceName || "").trim() || p.clientName || "Client";
+    props["Invoice Name"] = { title: [{ text: { content: name } }] };
     props["Brand"] = { select: { name: brand.selectName } };
   }
 
+  if (p.clientName) props["Nama Klien"] = { rich_text: text(p.clientName) };
+  if (p.clientPhone) props["No. HP Klien"] = { phone_number: p.clientPhone };
+  if (p.crmUrl) props["Link CRM"] = { url: p.crmUrl };
+  if (p.brand === "omoji" && p.classCategory) props["Class Category"] = { select: { name: p.classCategory } };
   if (p.dueDate) props["Due Date"] = { date: { start: p.dueDate } };
   if (p.additionalFeeNote) props["Notes Additional Fee"] = { rich_text: text(p.additionalFeeNote) };
+  if (p.internalNotes) props["Notes"] = { rich_text: text(p.internalNotes) };
 
-  const noteParts: string[] = [];
-  if (p.internalNotes) noteParts.push(p.internalNotes);
-  if (p.discountAmount) {
-    const promoLabel = p.promoType === "percent" ? `${p.promoValueRaw}%` : rupiah(p.discountAmount);
-    noteParts.push(`Diskon ${promoLabel}${p.promoNote ? ` (${p.promoNote})` : ""}: -${rupiah(p.discountAmount)}`);
-  }
-  if (noteParts.length) props["Notes"] = { rich_text: text(noteParts.join(" | ")) };
-
-  if (p.type === "dp") {
-    props["DP Amount"] = { number: p.dpAmount || 0 };
-  } else if (p.type === "final" && (p.paidAmount || 0) > 0) {
-    // Final-payment invoice with a DP already collected earlier.
-    // Without a DP (paidAmount 0) the client pays in full, so DP fields stay
-    // untouched — otherwise DP Status gets ticked and the row shows "DP Masuk".
+  // DP Amount only ever holds money actually received. A DP invoice just plans
+  // a DP (kept in "Items"); the amount is written when the admin marks the DP as
+  // received. A final invoice continuing an existing page leaves the DP fields
+  // as they are. Only a brand-new final invoice with a DP collected outside the
+  // app records that DP here.
+  if (p.type === "final" && !isUpdate && (p.paidAmount || 0) > 0) {
     props["DP Amount"] = { number: p.paidAmount };
     props["DP Status"] = { checkbox: true };
-    if (p.dpPaidDate) props["DP Date"] = { date: { start: p.dpPaidDate } };
+    props["DP Date"] = { date: { start: p.dpPaidDate || p.invoiceDate } };
   }
-  // "quotation": no DP/payment fields set yet — nothing has been paid.
 
   return props;
 }
@@ -248,11 +290,10 @@ function buildContentBlocks(p: InvoicePayload, origin: string): any[] {
   };
 
   const showBreakdown = !!p.additionalFee || !!p.discountAmount;
-  const promoTag = p.promoType === "percent" && p.promoValueRaw ? ` ${p.promoValueRaw}%` : "";
   const feeBreakdownLines = showBreakdown
     ? [
         `Subtotal : ${rupiah(p.subtotal)}`,
-        ...(p.discountAmount ? [`Diskon${promoTag}${p.promoNote ? ` (${p.promoNote})` : ""} : -${rupiah(p.discountAmount)}`] : []),
+        ...(p.discountAmount ? [`${potonganLabel(p)} : -${rupiah(p.discountAmount)}`] : []),
         ...(p.additionalFee ? [`Biaya Tambahan${p.additionalFeeNote ? ` (${p.additionalFeeNote})` : ""} : ${rupiah(p.additionalFee)}`] : []),
       ]
     : [];

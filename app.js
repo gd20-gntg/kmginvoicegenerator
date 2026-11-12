@@ -63,6 +63,17 @@ let statusFilter = "all";
 let brandFilter = "all";
 let searchQuery = "";
 let sortOrder = "desc";
+let catalog = null; // produk dari halaman Notion "Katalog Produk Invoice"
+let catalogLoading = false;
+let invoiceNameTouched = false;
+
+const CLASS_ABBR = {
+  "Experience Class": "EC",
+  "Exclusive Semi Private Class": "ESPC",
+  "Semi Private Class": "SPC",
+  "Private Full Mentoring": "PFM",
+  "Private Hybrid Mentoring": "PHM",
+};
 
 const MONTH_NAMES = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
 
@@ -114,6 +125,10 @@ function renderItems() {
     row.innerHTML = `
       ${state.items.length > 1 ? `<button type="button" class="remove-item" data-idx="${idx}">✕ hapus</button>` : ""}
       <div class="field">
+        <label>Pilih dari Katalog</label>
+        <select class="item-catalog" data-idx="${idx}">${catalogOptionsHtml()}</select>
+      </div>
+      <div class="field">
         <label>Nama Jasa / Item</label>
         <input type="text" class="item-service" data-idx="${idx}" value="${escapeAttr(item.service)}" placeholder="cth. Melanao Studio Full Day" />
       </div>
@@ -135,6 +150,166 @@ function renderItems() {
     `;
     wrap.appendChild(row);
   });
+}
+
+function brandLabel() {
+  return state.brand === "omoji" ? "Omoji" : "Melanao";
+}
+
+function catalogProductsForBrand() {
+  return (catalog || []).filter((p) => (p.brand || "").toLowerCase() === brandLabel().toLowerCase());
+}
+
+function catalogOptionsHtml() {
+  if (catalog === null) {
+    return `<option value="">${catalogLoading ? "Memuat katalog..." : "— klik untuk memuat katalog —"}</option>`;
+  }
+  const products = catalogProductsForBrand();
+  if (!products.length) return `<option value="">— katalog ${brandLabel()} masih kosong —</option>`;
+  return `<option value="">— pilih produk —</option>` + products
+    .map((p, i) => `<option value="${i}">${escapeHtml(p.name)} — ${rupiah(p.price)}</option>`)
+    .join("");
+}
+
+async function loadCatalog(passcode) {
+  if (catalogLoading) return;
+  catalogLoading = true;
+  renderItems();
+  const statusEl = el("statusMsg");
+  try {
+    const res = await fetch("/api/catalog", { headers: { "x-admin-passcode": passcode } });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Gagal memuat katalog");
+    catalog = data.products || [];
+    statusEl.textContent = `Katalog dimuat (${catalog.length} produk) — silakan pilih produknya.`;
+    statusEl.className = "status ok";
+  } catch (err) {
+    statusEl.textContent = "Gagal memuat katalog: " + err.message;
+    statusEl.className = "status err";
+    if (/passcode/i.test(err.message)) adminPasscode = null;
+  } finally {
+    catalogLoading = false;
+    renderItems();
+  }
+}
+
+function applyCatalogProduct(idx, productIdx) {
+  const product = catalogProductsForBrand()[productIdx];
+  if (!product) return;
+  const item = state.items[idx];
+  item.service = product.name;
+  item.price = product.price;
+  if (product.detail) item.detail = product.detail;
+  if (state.brand === "omoji" && product.category && CLASS_ABBR[product.category]) {
+    el("classCategory").value = product.category;
+  }
+  renderItems();
+  renderPreview();
+}
+
+function openProductModal() {
+  el("productModalTitle").textContent = `Produk Baru ke Katalog ${brandLabel()}`;
+  el("productName").value = "";
+  el("productPrice").value = "";
+  el("productDetail").value = "";
+  el("productCategory").value = state.brand === "omoji" ? (el("classCategory").value || "") : "";
+  el("productCategoryField").classList.toggle("hidden", state.brand !== "omoji");
+  el("productModal").classList.remove("hidden");
+  el("productName").focus();
+}
+
+async function saveProduct(passcode) {
+  const statusEl = el("statusMsg");
+  const body = {
+    brand: brandLabel(),
+    name: el("productName").value.trim(),
+    price: Number(el("productPrice").value) || 0,
+    category: state.brand === "omoji" ? el("productCategory").value : "",
+    detail: el("productDetail").value.trim(),
+  };
+  if (!body.name || body.price <= 0) {
+    statusEl.textContent = "Nama produk dan harga wajib diisi.";
+    statusEl.className = "status err";
+    return;
+  }
+  statusEl.textContent = "Menyimpan produk ke katalog...";
+  statusEl.className = "status";
+  try {
+    const res = await fetch("/api/catalog", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-admin-passcode": passcode },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Gagal menyimpan produk");
+    if (catalog === null) {
+      await loadCatalog(passcode);
+    } else {
+      catalog.push(data.product);
+      renderItems();
+    }
+    statusEl.textContent = `"${body.name}" tersimpan di katalog ✓`;
+    statusEl.className = "status ok";
+  } catch (err) {
+    statusEl.textContent = "Gagal: " + err.message;
+    statusEl.className = "status err";
+    if (/passcode/i.test(err.message)) adminPasscode = null;
+  }
+}
+
+// Nama baris di Notion: Omoji "SPC - Hair Care Jakarta [Nama]", Melanao "Nama Klien".
+function suggestedInvoiceName() {
+  const client = el("clientName").value.trim();
+  if (state.brand === "omoji") {
+    const abbr = CLASS_ABBR[el("classCategory").value];
+    const firstService = (state.items[0]?.service || "").trim();
+    if (abbr) {
+      const middle = firstService ? `${abbr} - ${firstService}` : abbr;
+      return client ? `${middle} [${client}]` : middle;
+    }
+  }
+  return client;
+}
+
+function updateInvoiceName() {
+  if (!invoiceNameTouched) el("invoiceName").value = suggestedInvoiceName();
+}
+
+async function searchCrm(passcode) {
+  const resultsEl = el("crmResults");
+  const q = el("crmSearch").value.trim();
+  if (!q) return;
+  resultsEl.innerHTML = `<span class="crm-empty">Mencari...</span>`;
+  try {
+    const res = await fetch(`/api/crm-search?q=${encodeURIComponent(q)}`, { headers: { "x-admin-passcode": passcode } });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Gagal mencari");
+    if (!data.enabled) {
+      resultsEl.innerHTML = `<span class="crm-empty">CRM belum terhubung ke web ini — tempel link kontaknya manual di kolom bawah.</span>`;
+      return;
+    }
+    if (!data.contacts.length) {
+      resultsEl.innerHTML = `<span class="crm-empty">Tidak ketemu di CRM.</span>`;
+      return;
+    }
+    resultsEl.innerHTML = data.contacts
+      .map((c, i) => `<button type="button" data-crm-idx="${i}">${escapeHtml(c.name)}${c.phone ? ` · ${escapeHtml(c.phone)}` : ""}</button>`)
+      .join("");
+    resultsEl.onclick = (e) => {
+      const btn = e.target.closest("button[data-crm-idx]");
+      if (!btn) return;
+      const c = data.contacts[Number(btn.dataset.crmIdx)];
+      if (!c) return;
+      if (!el("clientName").value.trim()) el("clientName").value = c.name;
+      if (c.phone) el("clientPhone").value = c.phone;
+      el("crmUrl").value = c.url || "";
+      resultsEl.innerHTML = `<span class="crm-empty">Terhubung ke kontak CRM: ${escapeHtml(c.name)} ✓</span>`;
+      renderPreview();
+    };
+  } catch (err) {
+    resultsEl.innerHTML = `<span class="crm-empty">Gagal: ${escapeHtml(err.message)}</span>`;
+    if (/passcode/i.test(err.message)) adminPasscode = null;
+  }
 }
 
 function escapeHtml(s) {
@@ -173,6 +348,7 @@ function calc() {
 
 // ===================== Preview render =====================
 function renderPreview() {
+  updateInvoiceName();
   const brand = BRANDS[state.brand];
   document.documentElement.style.setProperty("--brand-accent", brand.accent);
   document.documentElement.style.setProperty("--brand-accent-soft", brand.accentSoft);
@@ -201,12 +377,12 @@ function renderPreview() {
   let summaryHtml = "";
   const additionalFeeNote = el("additionalFeeNote").value;
   const promoNote = el("promoNote").value;
-  const promoTag = c.promoType === "percent" && c.promoValueRaw ? ` ${c.promoValueRaw}%` : "";
+  const promoTag = c.promoType === "percent" && c.promoValueRaw ? ` (${c.promoValueRaw}%)` : "";
   const showBreakdown = c.additionalFee > 0 || c.discountAmount > 0;
   const feeBreakdownHtml = showBreakdown
     ? `
       <div class="row"><span>Subtotal</span><span>${rupiah(c.subtotal)}</span></div>
-      ${c.discountAmount > 0 ? `<div class="row"><span>Diskon${promoTag}${promoNote ? ` (${escapeHtml(promoNote)})` : ""}</span><span>-${rupiah(c.discountAmount)}</span></div>` : ""}
+      ${c.discountAmount > 0 ? `<div class="row"><span>${escapeHtml(promoNote.trim() || "Potongan Harga")}${promoTag}</span><span>-${rupiah(c.discountAmount)}</span></div>` : ""}
       ${c.additionalFee > 0 ? `<div class="row"><span>Biaya Tambahan${additionalFeeNote ? ` (${escapeHtml(additionalFeeNote)})` : ""}</span><span>${rupiah(c.additionalFee)}</span></div>` : ""}
     `
     : "";
@@ -395,11 +571,20 @@ function gatherPayload() {
     dpPaidDate: el("dpPaidDate").value || null,
     existingPageUrl: el("existingPageUrl").value || null,
     internalNotes: el("internalNotes").value,
+    invoiceName: el("invoiceName").value.trim(),
+    classCategory: state.brand === "omoji" ? el("classCategory").value : "",
+    crmUrl: el("crmUrl").value.trim(),
   };
 }
 
 async function saveToNotion(passcode) {
   const statusEl = el("statusMsg");
+  const crmUrl = el("crmUrl").value.trim();
+  if (crmUrl && !/^https?:\/\//i.test(crmUrl)) {
+    statusEl.textContent = "Link Kontak CRM harus diawali https:// (tempel link halaman kontaknya).";
+    statusEl.className = "status err";
+    return;
+  }
   statusEl.textContent = "Menyimpan ke Notion...";
   statusEl.className = "status";
   try {
@@ -540,9 +725,14 @@ async function continueToFinalPayment(inv, passcode) {
   document.querySelector('#docTypeToggle .pill[data-value="invoice"]')?.click();
   document.querySelector('#typeToggle .pill[data-value="final"]')?.click();
 
-  el("clientName").value = deriveClientNameFromInvoiceName(inv.name);
+  el("clientName").value = inv.clientName || deriveClientNameFromInvoiceName(inv.name);
   el("existingPageUrl").value = inv.url || "";
-  el("dpPaidAmount").value = inv.dpAmount || 0;
+  el("dpPaidAmount").value = inv.dpStatus ? (inv.dpAmount || 0) : 0;
+  el("dpPaidDate").value = inv.dpDate || "";
+  if (inv.classCategory) el("classCategory").value = inv.classCategory;
+  // Baris Notion-nya sudah ada, namanya tidak diganti saat disimpan.
+  invoiceNameTouched = true;
+  el("invoiceName").value = inv.name || "";
   renderPreview();
   el("contactPerson").focus();
 
@@ -558,6 +748,20 @@ async function continueToFinalPayment(inv, passcode) {
     if (!res.ok) throw new Error(data.error || "Gagal ambil item");
     if (data.items && data.items.length) {
       state.items = data.items;
+      const meta = data.meta;
+      if (meta) {
+        if (meta.contactPerson) el("contactPerson").value = meta.contactPerson;
+        if (meta.clientPhone) el("clientPhone").value = meta.clientPhone;
+        if (meta.classCategory) el("classCategory").value = meta.classCategory;
+        if (meta.crmUrl) el("crmUrl").value = meta.crmUrl;
+        if (meta.additionalFee) el("additionalFee").value = meta.additionalFee;
+        if (meta.additionalFeeNote) el("additionalFeeNote").value = meta.additionalFeeNote;
+        if (meta.discount) {
+          document.querySelector('#promoTypeToggle .pill[data-value="nominal"]')?.click();
+          el("promoValue").value = meta.discount;
+          el("promoNote").value = meta.promoNote || "";
+        }
+      }
       renderItems();
       renderPreview();
       statusEl.textContent = `${data.items.length} item dari invoice DP berhasil ditarik otomatis. Tambahin item/biaya baru kalau ada (misal overtime), terus cek lagi totalnya.`;
@@ -630,12 +834,24 @@ function openPaymentModal(inv, action) {
   el("paymentDate").value = todayISO();
   const isUndo = action.startsWith("undo_");
   el("paymentMetodeField").classList.toggle("hidden", isUndo);
+  el("paymentFileField").classList.toggle("hidden", isUndo);
+  el("paymentFile").value = "";
   if (!isUndo) el("paymentMetode").value = "Transfer";
+  let hint = "";
+  if (action === "full_payment_received") {
+    const dpReceived = inv.dpStatus ? (inv.dpAmount || 0) : 0;
+    hint = dpReceived > 0
+      ? `Total ${rupiah(inv.total)} − DP ${rupiah(dpReceived)} → pelunasan ${rupiah(inv.total - dpReceived)} dicatat ke Cashflow CV.`
+      : `Full payment ${rupiah(inv.total)} dicatat ke Cashflow CV.`;
+  } else if (isUndo) {
+    hint = "Entri Cashflow CV yang terhubung ke invoice ini ikut dipindah ke Trash.";
+  }
+  el("paymentHint").textContent = hint;
   // Nominal DP diisi di sini supaya ikut tersimpan ke Notion (DP Amount) & Cashflow CV.
   // Prefill: DP Amount yang sudah ada di Notion, kalau kosong default 50% dari total.
   const isDpReceived = action === "dp_received";
   el("paymentDpAmountField").classList.toggle("hidden", !isDpReceived);
-  if (isDpReceived) el("paymentDpAmount").value = inv.dpAmount || Math.round((inv.total || 0) * 0.5);
+  if (isDpReceived) el("paymentDpAmount").value = inv.dpAmount || inv.dpPlanned || Math.round((inv.total || 0) * 0.5);
   el("paymentModal").classList.remove("hidden");
 }
 
@@ -661,6 +877,8 @@ async function markPayment(passcode) {
   statusEl.textContent = "Menyimpan status...";
   statusEl.className = "status";
   try {
+    const file = isUndo ? null : await prepareProofFile(el("paymentFile").files[0]);
+    if (file) statusEl.textContent = "Mengupload bukti pembayaran & menyimpan status...";
     const res = await fetch("/api/update-payment-status", {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-admin-passcode": passcode },
@@ -670,20 +888,22 @@ async function markPayment(passcode) {
         date,
         brand: inv.brand,
         invoiceName: inv.name,
+        clientName: inv.clientName || "",
         total: inv.total,
         dpAmount,
         metodePembayaran: isUndo ? null : el("paymentMetode").value,
+        file,
       }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "Gagal update status");
     if (data.cashflowWarning) {
-      statusEl.textContent = "Status invoice terupdate, tapi gagal dicatat ke Cashflow CV: " + data.cashflowWarning;
+      statusEl.textContent = "Status invoice terupdate, tapi ada catatan: " + data.cashflowWarning;
       statusEl.className = "status err";
     } else {
-      statusEl.textContent = (action === "dp_received" || action === "full_payment_received")
-        ? "Status berhasil diupdate ✓ & tercatat di Cashflow CV"
-        : "Status berhasil diupdate ✓";
+      statusEl.textContent = isUndo
+        ? `Status dibatalkan ✓ (${data.cashflowArchived || 0} entri Cashflow CV dipindah ke Trash)`
+        : "Status berhasil diupdate ✓ & tercatat di Cashflow CV";
       statusEl.className = "status ok";
     }
     loadInvoiceList(passcode);
@@ -691,6 +911,48 @@ async function markPayment(passcode) {
     statusEl.textContent = "Gagal: " + err.message;
     statusEl.className = "status err";
   }
+}
+
+// Foto bukti dikecilkan dulu (maks 1600px, JPEG) supaya upload cepat & di bawah batas ukuran.
+function readAsBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(",")[1] || "");
+    reader.onerror = () => reject(new Error("File tidak bisa dibaca"));
+    reader.readAsDataURL(blob);
+  });
+}
+
+function loadImage(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Foto tidak bisa dibaca — coba kirim screenshot / JPG")); };
+    img.src = url;
+  });
+}
+
+async function prepareProofFile(file) {
+  if (!file) return null;
+  if (file.type === "application/pdf") {
+    if (file.size > 3.5 * 1024 * 1024) throw new Error("PDF bukti pembayaran maksimal 3,5 MB");
+    return { name: file.name, type: file.type, data: await readAsBase64(file) };
+  }
+  if (!file.type.startsWith("image/")) throw new Error("Bukti pembayaran harus foto atau PDF");
+  const img = await loadImage(file);
+  const scale = Math.min(1, 1600 / Math.max(img.width, img.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(img.width * scale);
+  canvas.height = Math.round(img.height * scale);
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.82));
+  if (!blob) throw new Error("Foto gagal diproses");
+  const baseName = (file.name || "bukti").replace(/\.[^.]+$/, "") || "bukti";
+  return { name: `${baseName}.jpg`, type: "image/jpeg", data: await readAsBase64(blob) };
 }
 
 // ===================== Delete invoice =====================
@@ -716,6 +978,10 @@ async function deleteInvoice(inv, passcode) {
 }
 
 // ===================== Field visibility per doc type =====================
+function updateBrandFields() {
+  el("classCategoryField").classList.toggle("hidden", state.brand !== "omoji");
+}
+
 function updateFieldVisibility() {
   const isQuotation = state.type === "quotation";
   const isDp = state.type === "dp";
@@ -754,7 +1020,8 @@ document.addEventListener("DOMContentLoaded", () => {
   updateFieldVisibility();
   renderPreview();
 
-  wireToggle("brandToggle", (val) => { state.brand = val; renderPreview(); });
+  updateBrandFields();
+  wireToggle("brandToggle", (val) => { state.brand = val; updateBrandFields(); renderItems(); renderPreview(); });
 
   wireToggle("docTypeToggle", (val) => {
     el("invoiceTypeGroup").classList.toggle("hidden", val !== "invoice");
@@ -775,7 +1042,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   wireToggle("promoTypeToggle", (val) => {
-    el("promoValueLabel").textContent = val === "percent" ? "Jumlah Diskon (%)" : "Jumlah Diskon (Rp)";
+    el("promoValueLabel").textContent = val === "percent" ? "Jumlah Potongan (%)" : "Jumlah Potongan (Rp)";
     renderPreview();
   });
 
@@ -795,6 +1062,29 @@ document.addEventListener("DOMContentLoaded", () => {
     const it = state.items[idx];
     totalEl.textContent = `Subtotal: ${rupiah(it.price * it.qty)}`;
     renderPreview();
+  });
+
+  el("itemsList").addEventListener("change", (e) => {
+    if (!e.target.classList.contains("item-catalog") || e.target.value === "") return;
+    applyCatalogProduct(Number(e.target.dataset.idx), Number(e.target.value));
+  });
+  el("itemsList").addEventListener("focusin", (e) => {
+    if (e.target.classList.contains("item-catalog") && catalog === null && !catalogLoading) {
+      withPasscode((code) => loadCatalog(code));
+    }
+  });
+  el("newProductBtn").addEventListener("click", openProductModal);
+  el("productCancel").addEventListener("click", () => el("productModal").classList.add("hidden"));
+  el("productConfirm").addEventListener("click", () => {
+    el("productModal").classList.add("hidden");
+    withPasscode((code) => saveProduct(code));
+  });
+  el("invoiceName").addEventListener("input", () => {
+    invoiceNameTouched = el("invoiceName").value.trim() !== "";
+  });
+  el("crmSearchBtn").addEventListener("click", () => withPasscode((code) => searchCrm(code)));
+  el("crmSearch").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); withPasscode((code) => searchCrm(code)); }
   });
 
   el("itemsList").addEventListener("click", (e) => {

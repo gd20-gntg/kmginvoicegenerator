@@ -61,6 +61,21 @@ export default async (req: Request, context: Context) => {
   }
 
   try {
+    // Preferred source: the structured "Items" property written by the web app.
+    const page = await notionFetch(`/pages/${pageId}`, token);
+    const itemsRaw = richTextToPlain(page.properties?.["Items"]?.rich_text || []);
+    if (itemsRaw) {
+      try {
+        const meta = JSON.parse(itemsRaw);
+        if (Array.isArray(meta.items) && meta.items.length) {
+          return new Response(JSON.stringify({ items: meta.items, meta }), { status: 200 });
+        }
+      } catch {
+        // fall through to reading the document table
+      }
+    }
+
+    // Fallback for older invoices: read the item table in the page content.
     const topLevel = await fetchAllChildren(pageId, token);
     const tableBlocks = topLevel.filter((b: any) => b.type === "table");
 

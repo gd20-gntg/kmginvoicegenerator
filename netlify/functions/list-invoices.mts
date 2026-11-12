@@ -34,6 +34,14 @@ function readCheckbox(prop: any): boolean {
 function readDate(prop: any): string | null {
   return prop?.date?.start || null;
 }
+function readItemsMeta(prop: any): any {
+  try {
+    const raw = readText(prop);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
 function readTitle(prop: any): string {
   return (prop?.title || []).map((t: any) => t.plain_text).join("");
 }
@@ -87,9 +95,13 @@ export default async (req: Request, context: Context) => {
       const dpStatus = readCheckbox(p["DP Status"]);
       const pelunasanStatus = readCheckbox(p["Pelunasan Status"]);
       const status = readText(p["Status Invoice"]) || (pelunasanStatus ? "Lunas" : dpStatus ? "DP Masuk" : "Belum Bayar");
+      const meta = readItemsMeta(p["Items"]);
       return {
         id: page.id,
         name: readTitle(p["Invoice Name"]),
+        clientName: readText(p["Nama Klien"]),
+        classCategory: readSelect(p["Class Category"]),
+        dpPlanned: Number(meta?.dpPlanned) || 0,
         brand: readSelect(p["Brand"]),
         invoiceDate: readDate(p["Invoice Date"]),
         dueDate: readDate(p["Due Date"]),

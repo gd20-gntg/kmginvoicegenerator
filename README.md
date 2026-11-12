@@ -52,6 +52,9 @@ Di Netlify: **Site configuration → Environment variables**, tambahin:
 | `NOTION_TOKEN` | secret integration dari langkah 2 |
 | `NOTION_DATA_SOURCE_ID` | `2e2ca0f3-d681-80fc-b823-000b45bfb140` (udah default, cuma perlu diisi kalau database-nya pindah) |
 | `NOTION_CASHFLOW_DATA_SOURCE_ID` | `342ca0f3-d681-82c5-b915-0708d152c4d8` (udah default juga, data source database "Cashflow CV") |
+| `NOTION_CATALOG_PAGE_ID` | `416ca0f3-d681-81fb-b7c2-f4679af904e8` (udah default — halaman "Katalog Produk Invoice" di 5 Pilar CV) |
+| `CRM_NOTION_TOKEN` | opsional — secret integration dari workspace Notion tempat CRM baru. Kalau kosong, pencarian CRM nonaktif (link CRM tetap bisa ditempel manual) |
+| `CRM_DATA_SOURCE_ID` | opsional — ID database kontak CRM, biar hasil pencarian cuma dari database itu |
 | `ADMIN_PASSCODE` | passcode bebas, ini yang diketik admin pas klik "Simpan ke Notion" — biar ga sembarang orang yang tau link web app-nya bisa nulis ke Notion kamu |
 
 Redeploy setelah env var ke-set. **Penting:** integration Notion-nya juga perlu di-connect ke database **Cashflow CV** juga (bukan cuma INVOICE 2026) — caranya sama, buka database Cashflow CV → `···` → Connections → connect ke integration yang sama.

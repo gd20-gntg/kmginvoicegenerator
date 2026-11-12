@@ -74,6 +74,33 @@
           <label for="dueDate">Due Date</label>
           <input type="date" id="dueDate" />
         </div>
+        <div class="field hidden" id="classCategoryField">
+          <label for="classCategory">Kategori Kelas</label>
+          <select id="classCategory">
+            <option value="">— pilih —</option>
+            <option value="Experience Class">Experience Class</option>
+            <option value="Exclusive Semi Private Class">Exclusive Semi Private Class</option>
+            <option value="Semi Private Class">Semi Private Class</option>
+            <option value="Private Full Mentoring">Private Full Mentoring</option>
+            <option value="Private Hybrid Mentoring">Private Hybrid Mentoring</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label for="invoiceName">Nama di Notion (otomatis, boleh diedit)</label>
+        <input type="text" id="invoiceName" placeholder="terisi otomatis dari nama klien &amp; kelas" />
+      </div>
+      <div class="field">
+        <label for="crmSearch">Cari Kontak di CRM (opsional)</label>
+        <div class="inline-row">
+          <input type="text" id="crmSearch" placeholder="ketik nama klien" />
+          <button type="button" class="btn-secondary" id="crmSearchBtn">Cari</button>
+        </div>
+        <div class="crm-results" id="crmResults"></div>
+      </div>
+      <div class="field">
+        <label for="crmUrl">Link Kontak CRM (opsional)</label>
+        <input type="text" id="crmUrl" placeholder="tempel link halaman kontak di CRM" />
       </div>
     </fieldset>
 
@@ -81,7 +108,10 @@
     <fieldset class="field-card">
       <legend>Item / Jasa</legend>
       <div id="itemsList"></div>
-      <button type="button" class="btn-secondary" id="addItemBtn">+ Tambah Item</button>
+      <div class="inline-row">
+        <button type="button" class="btn-secondary" id="addItemBtn">+ Tambah Item</button>
+        <button type="button" class="btn-secondary" id="newProductBtn">+ Produk Baru ke Katalog</button>
+      </div>
     </fieldset>
 
     <!-- Additional fee -->
@@ -101,19 +131,19 @@
 
     <!-- Promo / discount -->
     <fieldset class="field-card">
-      <legend>Promo / Diskon (opsional)</legend>
+      <legend>Potongan Harga — Diskon / Beasiswa (opsional)</legend>
       <div class="pill-toggle" id="promoTypeToggle" style="margin-bottom: 10px;">
         <button type="button" class="pill active" data-value="percent">Persen (%)</button>
         <button type="button" class="pill" data-value="nominal">Nominal (Rp)</button>
       </div>
       <div class="grid-2">
         <div class="field">
-          <label for="promoValue" id="promoValueLabel">Jumlah Diskon (%)</label>
+          <label for="promoValue" id="promoValueLabel">Jumlah Potongan (%)</label>
           <input type="number" id="promoValue" placeholder="0" min="0" />
         </div>
         <div class="field">
           <label for="promoNote">Keterangan</label>
-          <input type="text" id="promoNote" placeholder="cth. Promo akhir tahun" />
+          <input type="text" id="promoNote" placeholder="cth. Beasiswa Omoji x SBO / Promo akhir tahun" />
         </div>
       </div>
     </fieldset>
@@ -266,6 +296,11 @@
       <label for="paymentDpAmount">Nominal DP Diterima (Rp)</label>
       <input type="number" id="paymentDpAmount" min="0" />
     </div>
+    <p class="hint-text" id="paymentHint"></p>
+    <div class="field" id="paymentFileField">
+      <label for="paymentFile">Bukti Pembayaran (foto / PDF)</label>
+      <input type="file" id="paymentFile" accept="image/*,application/pdf" />
+    </div>
     <div class="field" id="paymentMetodeField">
       <label for="paymentMetode">Metode Pembayaran</label>
       <select id="paymentMetode">
@@ -277,6 +312,39 @@
     <div class="modal-actions">
       <button type="button" class="btn-secondary" id="paymentCancel">Batal</button>
       <button type="button" class="btn-primary" id="paymentConfirm">Simpan</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop hidden" id="productModal">
+  <div class="modal">
+    <h3 id="productModalTitle">Produk Baru ke Katalog</h3>
+    <div class="field">
+      <label for="productName">Nama Kelas / Jasa</label>
+      <input type="text" id="productName" />
+    </div>
+    <div class="field">
+      <label for="productPrice">Harga (Rp)</label>
+      <input type="number" id="productPrice" min="0" />
+    </div>
+    <div class="field" id="productCategoryField">
+      <label for="productCategory">Kategori Kelas</label>
+      <select id="productCategory">
+        <option value="">— tidak ada —</option>
+        <option value="Experience Class">Experience Class</option>
+        <option value="Exclusive Semi Private Class">Exclusive Semi Private Class</option>
+        <option value="Semi Private Class">Semi Private Class</option>
+        <option value="Private Full Mentoring">Private Full Mentoring</option>
+        <option value="Private Hybrid Mentoring">Private Hybrid Mentoring</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="productDetail">Detail (opsional)</label>
+      <input type="text" id="productDetail" />
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="btn-secondary" id="productCancel">Batal</button>
+      <button type="button" class="btn-primary" id="productConfirm">Simpan ke Katalog</button>
     </div>
   </div>
 </div>
