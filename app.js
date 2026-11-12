@@ -689,34 +689,48 @@ function renderSummary(invoices) {
   `;
 }
 
+function shortDate(iso) {
+  if (!iso) return "";
+  return new Date(iso + "T00:00:00").toLocaleDateString("id-ID", { day: "numeric", month: "short" });
+}
+
+function paymentLine(inv) {
+  if (inv.status === "Lunas") return inv.fullPaymentDate ? `Lunas ${shortDate(inv.fullPaymentDate)}` : "";
+  if (inv.status === "DP Masuk") return inv.dpDate ? `DP ${shortDate(inv.dpDate)}` : "";
+  return inv.dueDate ? `Jatuh tempo ${shortDate(inv.dueDate)}` : "";
+}
+
 function renderTable(invoices) {
   const bodyEl = el("listTableBody");
 
   if (!invoices.length) {
-    bodyEl.innerHTML = `<tr class="empty-row"><td colspan="10">Gak ada invoice yang cocok sama filter ini.</td></tr>`;
+    bodyEl.innerHTML = `<tr class="empty-row"><td colspan="4">Gak ada invoice yang cocok sama filter ini.</td></tr>`;
     return;
   }
 
-  bodyEl.innerHTML = invoices.map((inv) => `
+  bodyEl.innerHTML = invoices.map((inv) => {
+    const sub = [
+      `<span class="brand-badge ${(inv.brand || "").toLowerCase()}">${escapeHtml(inv.brand) || "-"}</span>`,
+      inv.invoiceDate ? shortDate(inv.invoiceDate) : "",
+    ].filter(Boolean).join(`<span class="dot">·</span>`);
+    const dpLine = inv.dpAmount && inv.status !== "Lunas" ? `DP ${rupiah(inv.dpAmount)}` : "";
+    return `
     <tr>
-      <td>${escapeHtml(inv.name) || "-"}</td>
-      <td><span class="brand-badge ${(inv.brand || "").toLowerCase()}">${escapeHtml(inv.brand) || "-"}</span></td>
-      <td>${formatDate(inv.invoiceDate)}</td>
-      <td>${formatDate(inv.dueDate)}</td>
-      <td>${formatDate(inv.dpDate)}</td>
-      <td>${formatDate(inv.fullPaymentDate)}</td>
-      <td class="num">${inv.total ? rupiah(inv.total) : "-"}</td>
-      <td class="num">${inv.dpAmount ? rupiah(inv.dpAmount) : "-"}</td>
-      <td><span class="status-badge ${statusBadgeClass(inv.status)}">${escapeHtml(inv.status)}</span></td>
-      <td>
-        <div class="row-actions">
-          ${inv.url ? `<a href="${inv.url}" target="_blank" rel="noopener">Buka</a>` : ""}
-          ${paymentActionButtons(inv)}
-          ${inv.id ? `<button type="button" class="btn-mini btn-danger" data-action="delete" data-id="${inv.id}">Hapus</button>` : ""}
-        </div>
+      <td class="cell-main">
+        <div class="inv-name">${escapeHtml(inv.name) || "-"}</div>
+        <div class="inv-sub">${sub}</div>
       </td>
-    </tr>
-  `).join("");
+      <td class="num cell-amount">
+        <div class="amount">${inv.total ? rupiah(inv.total) : "-"}</div>
+        ${dpLine ? `<div class="inv-sub">${dpLine}</div>` : ""}
+      </td>
+      <td class="cell-status">
+        <span class="status-badge ${statusBadgeClass(inv.status)}">${escapeHtml(inv.status)}</span>
+        ${paymentLine(inv) ? `<div class="inv-sub">${paymentLine(inv)}</div>` : ""}
+      </td>
+      <td class="cell-actions">${rowActionsHtml(inv)}</td>
+    </tr>`;
+  }).join("");
 }
 
 // ===================== Continue DP invoice → Final Payment =====================
@@ -786,23 +800,35 @@ async function continueToFinalPayment(inv, passcode) {
   }
 }
 
-function paymentActionButtons(inv) {
+// Satu tombol utama per baris; aksi lain masuk ke menu "⋯".
+function rowActionsHtml(inv) {
   if (!inv.id) return "";
+  const btn = (action, label, cls = "") =>
+    `<button type="button" class="btn-mini ${cls}" data-action="${action}" data-id="${inv.id}">${label}</button>`;
+  const openLink = inv.url ? `<a class="menu-link" href="${inv.url}" target="_blank" rel="noopener">Buka di Notion</a>` : "";
+
+  let primary = "";
+  let menu = [];
   if (inv.status === "Lunas") {
-    return `<button type="button" class="btn-mini btn-undo" data-action="undo_full_payment" data-id="${inv.id}">Batalkan Lunas</button>`;
+    primary = inv.url ? `<a class="btn-mini" href="${inv.url}" target="_blank" rel="noopener">Buka</a>` : "";
+    menu = [btn("undo_full_payment", "Batalkan Lunas")];
+  } else if (inv.status === "DP Masuk") {
+    primary = btn("continue_final", "Pelunasan", "btn-continue");
+    menu = [openLink, btn("full_payment_received", "Tandai Lunas"), btn("undo_dp", "Batalkan DP")];
+  } else {
+    primary = btn("dp_received", "Tandai DP", "btn-continue");
+    menu = [openLink, btn("full_payment_received", "Tandai Lunas")];
   }
-  if (inv.status === "DP Masuk") {
-    return `
-      <button type="button" class="btn-mini btn-continue" data-action="continue_final" data-id="${inv.id}">Lanjut ke Pelunasan</button>
-      <button type="button" class="btn-mini" data-action="full_payment_received" data-id="${inv.id}">Tandai Lunas</button>
-      <button type="button" class="btn-mini btn-undo" data-action="undo_dp" data-id="${inv.id}">Batalkan DP</button>
-    `;
-  }
-  // Belum Bayar
+  menu.push(btn("delete", "Hapus", "btn-danger"));
+
   return `
-    <button type="button" class="btn-mini" data-action="dp_received" data-id="${inv.id}">Tandai DP</button>
-    <button type="button" class="btn-mini" data-action="full_payment_received" data-id="${inv.id}">Tandai Lunas</button>
-  `;
+    <div class="row-actions">
+      ${primary}
+      <details class="row-menu">
+        <summary aria-label="Aksi lain">⋯</summary>
+        <div class="row-menu-list">${menu.filter(Boolean).join("")}</div>
+      </details>
+    </div>`;
 }
 
 async function loadInvoiceList(passcode) {
@@ -1165,9 +1191,16 @@ document.addEventListener("DOMContentLoaded", () => {
     applyFilterAndRender();
   });
 
+  document.addEventListener("click", (e) => {
+    document.querySelectorAll("details.row-menu[open]").forEach((d) => {
+      if (!d.contains(e.target)) d.removeAttribute("open");
+    });
+  });
+
   el("listTableBody").addEventListener("click", (e) => {
-    const btn = e.target.closest(".btn-mini");
+    const btn = e.target.closest("button.btn-mini");
     if (!btn) return;
+    btn.closest("details")?.removeAttribute("open");
     const inv = lastInvoices.find((i) => i.id === btn.dataset.id);
     if (!inv) return;
     if (btn.dataset.action === "continue_final") {
