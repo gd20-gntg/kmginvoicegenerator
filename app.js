@@ -601,9 +601,16 @@ async function saveToNotion(passcode) {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "Gagal menyimpan");
-    statusEl.textContent = "Berhasil disimpan ke Notion ✓";
+    statusEl.textContent = "Berhasil disimpan ke Notion ✓ ";
     statusEl.className = "status ok";
-    if (data.url) window.open(data.url, "_blank");
+    if (data.url) {
+      const link = document.createElement("a");
+      link.href = data.url;
+      link.target = "_blank";
+      link.rel = "noopener";
+      link.textContent = "Buka di Notion";
+      statusEl.appendChild(link);
+    }
   } catch (err) {
     statusEl.textContent = "Gagal: " + err.message;
     statusEl.className = "status err";
