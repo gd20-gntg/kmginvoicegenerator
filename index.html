@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="theme-color" content="#f5f5f7" />
 <title>Invoice Generator — Melanao &amp; Omoji</title>
 <link rel="stylesheet" href="style.css" />
 </head>
@@ -21,7 +22,7 @@
   <!-- ===================== FORM PANEL ===================== -->
   <section class="panel form-panel">
     <header class="app-header">
-      <h1>Invoice Generator</h1>
+      <h1>Buat Dokumen</h1>
       <p class="subtitle">CV Karya Mudra Gemilang — Melanao &amp; Omoji</p>
     </header>
 
@@ -191,11 +192,13 @@
       </div>
     </fieldset>
 
-    <div class="actions">
-      <button type="button" class="btn-primary" id="downloadPdfBtn">⬇ Download PDF</button>
-      <button type="button" class="btn-notion" id="saveNotionBtn">💾 Simpan ke Notion</button>
+    <div class="form-footer">
+      <p class="status" id="statusMsg"></p>
+      <div class="actions">
+        <button type="button" class="btn-notion" id="downloadPdfBtn">Download PDF</button>
+        <button type="button" class="btn-primary" id="saveNotionBtn">Simpan ke Notion</button>
+      </div>
     </div>
-    <p class="status" id="statusMsg"></p>
   </section>
 
   <!-- ===================== PREVIEW PANEL ===================== -->
@@ -218,7 +221,7 @@
       <option value="desc">Terbaru dulu</option>
       <option value="asc">Terlama dulu</option>
     </select>
-    <button type="button" class="btn-secondary" id="refreshListBtn">🔄 Refresh</button>
+    <button type="button" class="btn-secondary" id="refreshListBtn">Refresh</button>
     <span class="status" id="listStatusMsg"></span>
   </div>
 
@@ -280,7 +283,7 @@
     <iframe id="pdfFrame" title="Preview PDF"></iframe>
     <div class="modal-actions">
       <button type="button" class="btn-secondary" id="pdfCloseBtn">Tutup</button>
-      <a class="btn-primary" id="pdfDownloadLink" download>⬇ Download PDF</a>
+      <a class="btn-primary" id="pdfDownloadLink" download>Download PDF</a>
     </div>
   </div>
 </div>
