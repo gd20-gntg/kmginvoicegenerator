@@ -167,7 +167,10 @@ function catalogOptionsHtml() {
   const products = catalogProductsForBrand();
   if (!products.length) return `<option value="">— katalog ${brandLabel()} masih kosong —</option>`;
   return `<option value="">— pilih produk —</option>` + products
-    .map((p, i) => `<option value="${i}">${escapeHtml(p.name)} — ${rupiah(p.price)}</option>`)
+    .map((p, i) => {
+      const tag = p.category ? ` (${CLASS_ABBR[p.category] || p.category})` : "";
+      return `<option value="${i}">${escapeHtml(p.name)}${escapeHtml(tag)} — ${rupiah(p.price)}</option>`;
+    })
     .join("");
 }
 
